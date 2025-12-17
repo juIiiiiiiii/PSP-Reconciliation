@@ -1,0 +1,123 @@
+{
+  "name": "Exception Escalation",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Exception Alert Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "exception-alert",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "id": "check-priority",
+      "name": "Check Priority",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "value1": "={{$json.priority}}",
+              "operation": "equal",
+              "value2": "P1"
+            },
+            {
+              "value1": "={{$json.priority}}",
+              "operation": "equal",
+              "value2": "P2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pagerduty-p1",
+      "name": "PagerDuty (P1)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "https://events.pagerduty.com/v2/enqueue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Token token={{$env.PAGERDUTY_INTEGRATION_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "routing_key",
+              "value": "={{$env.PAGERDUTY_ROUTING_KEY}}"
+            },
+            {
+              "name": "event_action",
+              "value": "trigger"
+            },
+            {
+              "name": "payload",
+              "value": "={{JSON.stringify($json)}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "slack-p2",
+      "name": "Slack (P2)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [650, 400],
+      "parameters": {
+        "channel": "#finance-alerts",
+        "text": "Exception Alert: {{$json.exception_type}} - Amount: ${{$json.amount_value / 100}}"
+      }
+    }
+  ],
+  "connections": {
+    "webhook-trigger": {
+      "main": [
+        [
+          {
+            "node": "check-priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check-priority": {
+      "main": [
+        [
+          {
+            "node": "pagerduty-p1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "slack-p2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+
+

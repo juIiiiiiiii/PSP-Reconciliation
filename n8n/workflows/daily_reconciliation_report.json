@@ -1,0 +1,86 @@
+{
+  "name": "Daily Reconciliation Report",
+  "nodes": [
+    {
+      "id": "trigger-daily",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "generate-report",
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.psp-reconciliation.com/api/v1/reports/daily",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.API_TOKEN}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "parameters": {
+        "fromEmail": "reconciliation@example.com",
+        "toEmail": "finance@example.com",
+        "subject": "Daily Reconciliation Report - {{$now.format('YYYY-MM-DD')}}",
+        "text": "{{$json.report}}"
+      }
+    }
+  ],
+  "connections": {
+    "trigger-daily": {
+      "main": [
+        [
+          {
+            "node": "generate-report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generate-report": {
+      "main": [
+        [
+          {
+            "node": "send-email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+
+

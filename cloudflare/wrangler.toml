@@ -1,0 +1,36 @@
+name = "psp-reconciliation-webhook-validator"
+main = "workers/webhook-validator.js"
+compatibility_date = "2024-01-15"
+
+[env.production]
+routes = [
+  { pattern = "webhooks.psp-reconciliation.com/*", zone_name = "psp-reconciliation.com" }
+]
+
+[env.staging]
+routes = [
+  { pattern = "webhooks-staging.psp-reconciliation.com/*", zone_name = "psp-reconciliation.com" }
+]
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "IDEMPOTENCY_KV"
+id = "your-idempotency-kv-namespace-id"
+preview_id = "your-idempotency-kv-preview-id"
+
+[[kv_namespaces]]
+binding = "WEBHOOK_SECRETS"
+id = "your-webhook-secrets-kv-namespace-id"
+preview_id = "your-webhook-secrets-kv-preview-id"
+
+# Environment variables
+[vars]
+BACKEND_API_URL = "https://api.psp-reconciliation.com"
+
+[env.production.vars]
+BACKEND_API_URL = "https://api.psp-reconciliation.com"
+
+[env.staging.vars]
+BACKEND_API_URL = "https://api-staging.psp-reconciliation.com"
+
+

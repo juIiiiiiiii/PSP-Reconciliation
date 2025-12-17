@@ -1,0 +1,59 @@
+services:
+  - type: web
+    name: psp-reconciliation-api
+    env: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.services.api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: KINESIS_STREAM
+        value: psp-reconciliation-events
+      - key: S3_BUCKET_RAW_EVENTS
+        value: psp-reconciliation-raw-events
+      - key: ENVIRONMENT
+        value: production
+    healthCheckPath: /health
+    autoDeploy: true
+
+  - type: worker
+    name: psp-reconciliation-scheduler
+    env: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python -m backend.services.scheduler.scheduled_jobs
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+    autoDeploy: true
+
+  - type: cron
+    name: daily-settlement-download
+    schedule: "0 2 * * *"  # 02:00 UTC daily
+    env: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python -m backend.services.scheduler.scheduled_jobs --job daily_settlement_download
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+

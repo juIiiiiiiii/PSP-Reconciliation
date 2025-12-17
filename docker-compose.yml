@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: psp-reconciliation-postgres
+    environment:
+      POSTGRES_DB: psp_reconciliation
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - psp-reconciliation-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: psp-reconciliation-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - psp-reconciliation-network
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: psp-reconciliation-api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/psp_reconciliation
+      REDIS_URL: redis://redis:6379
+      KINESIS_STREAM: psp-reconciliation-events
+      S3_BUCKET_RAW_EVENTS: psp-reconciliation-raw-events
+      S3_BUCKET_SETTLEMENTS: psp-reconciliation-settlements
+      S3_BUCKET_ARCHIVE: psp-reconciliation-archive
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production}
+      ENVIRONMENT: development
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      # Supabase (optional for local dev)
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      # Cloudflare (optional for local dev)
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      CLOUDFLARE_R2_ACCESS_KEY_ID: ${CLOUDFLARE_R2_ACCESS_KEY_ID:-}
+      CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${CLOUDFLARE_R2_SECRET_ACCESS_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    networks:
+      - psp-reconciliation-network
+    command: uvicorn services.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Optional: LocalStack for AWS services (S3, Kinesis, DynamoDB) simulation
+  localstack:
+    image: localstack/localstack:latest
+    container_name: psp-reconciliation-localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    environment:
+      - SERVICES=s3,kinesis,dynamodb
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - localstack_data:/tmp/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - psp-reconciliation-network
+    profiles:
+      - aws-services
+
+volumes:
+  postgres_data:
+  redis_data:
+  localstack_data:
+
+networks:
+  psp-reconciliation-network:
+    driver: bridge
+
